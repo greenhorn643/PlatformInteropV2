@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PlatformInterop.Console.Server\PlatformInterop.Console.Server.csproj" />
+    <ProjectReference Include="..\PlatformInterop.Console.Shared\PlatformInterop.Console.Shared.csproj" />
     <ProjectReference Include="..\PlatformInterop\PlatformInterop.csproj" />
   </ItemGroup>
 

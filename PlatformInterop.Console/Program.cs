@@ -1,6 +1,6 @@
 ﻿using PlatformInterop;
 using PlatformInterop.Client;
-using PlatformInterop.Server;
+using PlatformInterop.Shared;
 
 var (client, disposer) = PlatformInteropClient.Create("PlatformInterop.Console.Server.exe");
 

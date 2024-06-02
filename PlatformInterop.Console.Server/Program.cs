@@ -1,5 +1,6 @@
 ﻿using PlatformInterop;
 using PlatformInterop.Server;
+using PlatformInterop.Shared;
 
 var (server, disposer) = PlatformInteropServer.Create(args[0], args[1]);
 

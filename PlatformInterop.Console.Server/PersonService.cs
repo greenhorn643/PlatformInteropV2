@@ -1,13 +1,6 @@
-﻿using MemoryPack;
+﻿using PlatformInterop.Shared;
 
 namespace PlatformInterop.Server;
-
-[MemoryPackable]
-public partial record Address(string Street, int Number, int? Postcode);
-
-[MemoryPackable]
-public partial record Person(string FirstName, string LastName, int Age, Address? Address);
-
 
 internal class PersonService
 {

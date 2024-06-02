@@ -5,9 +5,11 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\PlatformInterop.Console.Shared\PlatformInterop.Console.Shared.csproj" />
     <ProjectReference Include="..\PlatformInterop\PlatformInterop.csproj" />
   </ItemGroup>
 

@@ -1,4 +1,4 @@
-﻿using PlatformInterop.Server;
+﻿using PlatformInterop.Shared;
 
 namespace PlatformInterop.Client;
 
