@@ -1,27 +1,16 @@
 ﻿using PlatformInterop;
+using PlatformInterop.Server;
 
 var (server, disposer) = PlatformInteropServer.Create(args[0], args[1]);
 
-var myObj = new MyClass();
+var service = new PersonService();
 
-server.RegisterHandler(1, (Unit _) => Task.FromResult(myObj.GetNumber()));
-server.RegisterHandler(2, ((int x, double y) args) => myObj.AddAndConvertToString(args.x, args.y));
+server.RegisterHandler(1, (Unit _) => service.IsServiceRunningAs64BitProcess());
+server.RegisterHandler(2, (Person person) => service.AddPersonAsync(person));
+server.RegisterHandler(3, async (int id) => { await service.RemovePersonAsync(id); return Unit.Value; });
+server.RegisterHandler(4, (int id) => service.GetPersonAsync(id));
+server.RegisterHandler(5, (Unit _) => service.GetPeopleAsync());
 
 await server.Run();
 
 disposer.Dispose();
-
-class MyClass
-{
-	public int GetNumber()
-	{
-		return 42;
-	}
-
-	public async Task<string> AddAndConvertToString(int x, double y)
-	{
-		await Task.Delay(500);
-
-		return (x + y).ToString();
-	}
-}

@@ -1,40 +1,43 @@
 ﻿using PlatformInterop;
+using PlatformInterop.Client;
+using PlatformInterop.Server;
 
 var (client, disposer) = PlatformInteropClient.Create("PlatformInterop.Console.Server.exe");
 
-var myObj = new MyClass(client);
+var personClient = new PersonClient(client);
 
 Task.Run(client.Run);
 
-var x = await myObj.GetNumber();
+int nItems = 1000000;
 
-Console.WriteLine(x);
+var t0 = DateTime.Now;
 
-var s = await myObj.AddAndConvertToString(13, 4.23);
+var tasks = Enumerable.Range(0, nItems).Select(_ => personClient.AddPersonAsync(new Person("alex", "palmer", 33, null)));
 
-Console.WriteLine(s);
+await Task.WhenAll(tasks);
 
-disposer.Dispose();
+var t1 = DateTime.Now;
 
-class MyClass
+var elapsed = t1 - t0;
+
+Console.WriteLine($"wrote {nItems} Person objects in {elapsed.TotalSeconds} seconds");
+
+t0 = DateTime.Now;
+
+var people = await personClient.GetPeopleAsync();
+
+t1 = DateTime.Now;
+
+elapsed = t1 - t0;
+
+Console.WriteLine($"read {people.Count} Person objects in {elapsed.TotalSeconds} seconds");
+
+foreach (var person in people)
 {
-	private readonly PlatformInteropClient client;
-
-	public MyClass(PlatformInteropClient client)
+	if (person != new Person("alex", "palmer", 33, null))
 	{
-		this.client = client;
-
-		client.RegisterMethod<int>(1);
-		client.RegisterMethod<string>(2);
-	}
-
-	public Task<int> GetNumber()
-	{
-		return client.CallMethodAsync(Proxy<int>.Value, 1);
-	}
-
-	public Task<string> AddAndConvertToString(int x, double y)
-	{
-		return client.CallMethodAsync(Proxy<string>.Value, 2, x, y);
+		throw new Exception("people not equal");
 	}
 }
+
+disposer.Dispose();

@@ -43,8 +43,11 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 							BodyLength = body.Length,
 						};
 
-						await channel.SendAsync(serializer.Serialize(responseHeader));
-						await channel.SendAsync(body);
+						byte[] headerBytes = serializer.Serialize(responseHeader);
+
+						byte[] packet = [.. headerBytes, .. body];
+
+						await channel.SendAsync(packet);
 					});
 				}
 				catch (Exception ex)
@@ -61,8 +64,11 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 							BodyLength = body.Length,
 						};
 
-						await channel.SendAsync(serializer.Serialize(responseHeader));
-						await channel.SendAsync(body);
+						byte[] headerBytes = serializer.Serialize(responseHeader);
+
+						byte[] packet = [.. headerBytes, .. body];
+
+						await channel.SendAsync(packet);
 					});
 				}
 			}

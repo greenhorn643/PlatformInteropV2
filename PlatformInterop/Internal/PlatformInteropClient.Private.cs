@@ -70,8 +70,11 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			throw new PlatformInteropClientException("duplicate caller id");
 		}
 
-		await channel.SendAsync(serializer.Serialize(headerWithBodyLength));
-		await channel.SendAsync(body);
+		byte[] header = serializer.Serialize(headerWithBodyLength);
+
+		byte[] packet = [.. header, .. body];
+
+		await channel.SendAsync(packet);
 
 		return await tcs.Task;
 	}
