@@ -11,6 +11,7 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 	private readonly Action<RequestHeader, Buffer>?[] dispatchByMethodCode = new Action<RequestHeader, Buffer>[256];
 
 	private readonly BlockingCollection<Action> responderQueue = [];
+	private readonly BlockingCollection<Action> handlerQueue = [];
 
 	private void CallMethodAndRespond<RT, TArgs>(RequestHeader header, Buffer buffer)
 	{
@@ -24,24 +25,25 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 		var args = serializer.Deserialize<TArgs>(requestBodyBuffer)
 			?? throw new PlatformInteropServerException($"failed to deserialize arguments of type {typeof(TArgs).Name}");
 
-		Task.Run(async () =>
+		var handler = requestHandlers[header.MethodCode]
+			?? throw new PlatformInteropServerException($"no handler registered for method code {header.MethodCode}");
+
+		if (handler is Func<TArgs, Task<RT>> typedHandler)
 		{
-			var handler = requestHandlers[header.MethodCode]
-				?? throw new PlatformInteropServerException($"no handler registered for method code {header.MethodCode}");
-
-			if (handler is Func<TArgs, Task<RT>> typedHandler)
+			handlerQueue.Add(() =>
 			{
-				try
+				var value = typedHandler(args).ContinueWith(t =>
 				{
-					var value = await typedHandler(args);
-
-					var body = serializer.Serialize(value);
+					bool isSuccess = t.Status == TaskStatus.RanToCompletion;
+					var body = isSuccess
+						? serializer.Serialize(t.Result)
+						: serializer.Serialize(t.Exception);
 
 					var responseHeader = new ResponseHeader
 					{
 						MethodCode = header.MethodCode,
 						CallerId = header.CallerId,
-						IsSuccess = true,
+						IsSuccess = isSuccess,
 						BodyLength = body.Length,
 					};
 
@@ -52,35 +54,13 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 						channel.Send(headerBytes);
 						channel.Send(body);
 					});
-				}
-				catch (Exception ex)
-				{
-					var body = serializer.Serialize(ex);
-
-					var responseHeader = new ResponseHeader
-					{
-						MethodCode = header.MethodCode,
-						CallerId = header.CallerId,
-						IsSuccess = false,
-						BodyLength = body.Length,
-					};
-
-					byte[] headerBytes = serializer.Serialize(responseHeader);
-
-					byte[] packet = [.. headerBytes, .. body];
-
-					responderQueue.Add(() =>
-					{
-						channel.Send(headerBytes);
-						channel.Send(body);
-					});
-				}
-			}
-			else
-			{
-				throw new PlatformInteropServerException($"handler for method {header.MethodCode} is of an invalid type");
-			}
-		});
+				});
+			});
+		}
+		else
+		{
+			throw new PlatformInteropServerException($"handler for method {header.MethodCode} is of an invalid type");
+		}
 	}
 
 	private void ReceiveLoop()
@@ -125,6 +105,15 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 				currentHeader = serializer.Deserialize<RequestHeader>(requestHeaderBuffer);
 				hasHeader = true;
 			}
+		}
+	}
+
+	private void HandlerLoop()
+	{
+		while (true)
+		{
+			var action = handlerQueue.Take();
+			action();
 		}
 	}
 

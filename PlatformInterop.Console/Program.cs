@@ -12,9 +12,10 @@ int nItems = 100000;
 
 var t0 = DateTime.Now;
 
-var tasks = Enumerable.Range(0, nItems).Select(_ => personClient.AddPersonAsync(new Person("alex", "palmer", 33, null)));
-
-await Task.WhenAll(tasks);
+for (int i = 0; i < nItems; i++)
+{
+	await personClient.AddPersonAsync(new Person("alex", "palmer", 33, null));
+}
 
 var t1 = DateTime.Now;
 

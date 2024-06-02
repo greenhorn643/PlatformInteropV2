@@ -13,6 +13,11 @@ public partial class PlatformInteropServer<TChannel, TSerializer>(
 			IsBackground = true
 		}.Start();
 
+		new Thread(HandlerLoop)
+		{
+			IsBackground = true
+		}.Start();
+
 		ReceiveLoop();
 	}
 
