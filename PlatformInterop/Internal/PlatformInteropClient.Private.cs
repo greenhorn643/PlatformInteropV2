@@ -11,7 +11,10 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 	private readonly Action<ResponseHeader, Buffer>?[] dispatchByMethodCode = new Action<ResponseHeader, Buffer>[256];
 	private readonly ConcurrentDictionary<Guid, object> pendingMethodCalls = [];
 
-	private async Task RunReceiveLoop()
+	private readonly BlockingCollection<Action> responderQueue = [];
+	private readonly BlockingCollection<Action> senderQueue = [];
+
+	private void ReceiveLoop()
 	{
 		Buffer buffer = [];
 		ResponseHeader currentHeader = default;
@@ -23,7 +26,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			{
 				if (buffer.Count < currentHeader.BodyLength)
 				{
-					if (await channel.ReceiveAsync(buffer) == 0)
+					if (channel.Receive(buffer) == 0)
 					{
 						break;
 					}
@@ -42,7 +45,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			{
 				if (buffer.Count < responseHeaderLength)
 				{
-					if (await channel.ReceiveAsync(buffer) == 0)
+					if (channel.Receive(buffer) == 0)
 					{
 						break;
 					}
@@ -56,7 +59,25 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 		}
 	}
 
-	private async Task<TR> CallMethodImplAsync<TR, TBody>(Proxy<TR> _, Request<TBody> req)
+	private void ResponderLoop()
+	{
+		while (true)
+		{
+			var action = responderQueue.Take();
+			action();
+		}
+	}
+
+	private void SenderLoop()
+	{
+		while (true)
+		{
+			var action = senderQueue.Take();
+			action();
+		}
+	}
+
+	private Task<TR> CallMethodImplAsync<TR, TBody>(Proxy<TR> _, Request<TBody> req)
 	{
 		byte[] body = serializer.Serialize(req.Body);
 
@@ -72,11 +93,13 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 
 		byte[] header = serializer.Serialize(headerWithBodyLength);
 
-		byte[] packet = [.. header, .. body];
+		senderQueue.Add(() =>
+		{
+			channel.Send(header);
+			channel.Send(body);
+		});
 
-		await channel.SendAsync(packet);
-
-		return await tcs.Task;
+		return tcs.Task;
 	}
 
 	private void DeserializeResponseBodyAndPostResponse<TReturnType>(ResponseHeader header, Buffer buffer)
@@ -96,7 +119,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			if (pendingMethodCalls.TryRemove(header.CallerId, out var t))
 			{
 				var tcs = (TaskCompletionSource<TReturnType>)t;
-				Task.Run(() => tcs.SetResult(value));
+				responderQueue.Add(() => tcs.SetResult(value));
 			}
 		}
 		else
@@ -109,7 +132,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			if (pendingMethodCalls.TryRemove(header.CallerId, out var t))
 			{
 				var tcs = (TaskCompletionSource<TReturnType>)t;
-				Task.Run(() => tcs.SetException(error));
+				responderQueue.Add(() => tcs.SetException(error));
 			}
 		}
 	}

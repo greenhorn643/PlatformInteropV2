@@ -11,6 +11,6 @@ server.RegisterHandler(3, async (int id) => { await service.RemovePersonAsync(id
 server.RegisterHandler(4, (int id) => service.GetPersonAsync(id));
 server.RegisterHandler(5, (Unit _) => service.GetPeopleAsync());
 
-await server.Run();
+server.Run();
 
 disposer.Dispose();

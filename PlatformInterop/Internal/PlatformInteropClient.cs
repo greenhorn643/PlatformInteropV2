@@ -6,7 +6,20 @@ public partial class PlatformInteropClient<TChannel, TSerializer>(
 	where TChannel : IChannel
 	where TSerializer : ISerializer
 {
-	public Task Run() => RunReceiveLoop();
+	public void Run()
+	{
+		new Thread(ResponderLoop)
+		{
+			IsBackground = true
+		}.Start();
+
+		new Thread(SenderLoop)
+		{
+			IsBackground = true
+		}.Start();
+
+		ReceiveLoop();
+	}
 
 	public void RegisterMethod<TReturnType>(byte methodCode)
 	{

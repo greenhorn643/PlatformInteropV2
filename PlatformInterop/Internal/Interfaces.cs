@@ -7,6 +7,8 @@ public interface ISerializer
 
 public interface IChannel
 {
+	void Send(ReadOnlySpan<byte> bytes);
 	ValueTask SendAsync(ReadOnlyMemory<byte> bytes);
+	int Receive(Buffer buffer);
 	ValueTask<int> ReceiveAsync(Buffer buffer);
 }

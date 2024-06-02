@@ -1,4 +1,6 @@
-﻿namespace PlatformInterop.Internal;
+﻿using System.Collections.Concurrent;
+
+namespace PlatformInterop.Internal;
 
 public partial class PlatformInteropServer<TChannel, TSerializer>
 {
@@ -7,6 +9,8 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 	private byte[] requestBodyBuffer = [];
 	private readonly object?[] requestHandlers = new object[256];
 	private readonly Action<RequestHeader, Buffer>?[] dispatchByMethodCode = new Action<RequestHeader, Buffer>[256];
+
+	private readonly BlockingCollection<Action> responderQueue = [];
 
 	private void CallMethodAndRespond<RT, TArgs>(RequestHeader header, Buffer buffer)
 	{
@@ -31,44 +35,44 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 				{
 					var value = await typedHandler(args);
 
-					Task.Run(async () =>
+					var body = serializer.Serialize(value);
+
+					var responseHeader = new ResponseHeader
 					{
-						var body = serializer.Serialize(value);
+						MethodCode = header.MethodCode,
+						CallerId = header.CallerId,
+						IsSuccess = true,
+						BodyLength = body.Length,
+					};
 
-						var responseHeader = new ResponseHeader
-						{
-							MethodCode = header.MethodCode,
-							CallerId = header.CallerId,
-							IsSuccess = true,
-							BodyLength = body.Length,
-						};
+					byte[] headerBytes = serializer.Serialize(responseHeader);
 
-						byte[] headerBytes = serializer.Serialize(responseHeader);
-
-						byte[] packet = [.. headerBytes, .. body];
-
-						await channel.SendAsync(packet);
+					responderQueue.Add(() =>
+					{
+						channel.Send(headerBytes);
+						channel.Send(body);
 					});
 				}
 				catch (Exception ex)
 				{
-					Task.Run(async () =>
+					var body = serializer.Serialize(ex);
+
+					var responseHeader = new ResponseHeader
 					{
-						var body = serializer.Serialize(ex);
+						MethodCode = header.MethodCode,
+						CallerId = header.CallerId,
+						IsSuccess = false,
+						BodyLength = body.Length,
+					};
 
-						var responseHeader = new ResponseHeader
-						{
-							MethodCode = header.MethodCode,
-							CallerId = header.CallerId,
-							IsSuccess = false,
-							BodyLength = body.Length,
-						};
+					byte[] headerBytes = serializer.Serialize(responseHeader);
 
-						byte[] headerBytes = serializer.Serialize(responseHeader);
+					byte[] packet = [.. headerBytes, .. body];
 
-						byte[] packet = [.. headerBytes, .. body];
-
-						await channel.SendAsync(packet);
+					responderQueue.Add(() =>
+					{
+						channel.Send(headerBytes);
+						channel.Send(body);
 					});
 				}
 			}
@@ -79,7 +83,7 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 		});
 	}
 
-	private async Task RunReceiveLoop()
+	private void ReceiveLoop()
 	{
 		Buffer buffer = [];
 		RequestHeader currentHeader = default;
@@ -91,7 +95,7 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 			{
 				if (buffer.Count < currentHeader.BodyLength)
 				{
-					if (await channel.ReceiveAsync(buffer) == 0)
+					if (channel.Receive(buffer) == 0)
 					{
 						break;
 					}
@@ -110,7 +114,7 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 			{
 				if (buffer.Count < requestHeaderLength)
 				{
-					if (await channel.ReceiveAsync(buffer) == 0)
+					if (channel.Receive(buffer) == 0)
 					{
 						break;
 					}
@@ -121,6 +125,15 @@ public partial class PlatformInteropServer<TChannel, TSerializer>
 				currentHeader = serializer.Deserialize<RequestHeader>(requestHeaderBuffer);
 				hasHeader = true;
 			}
+		}
+	}
+
+	private void ResponderLoop()
+	{
+		while (true)
+		{
+			var action = responderQueue.Take();
+			action();
 		}
 	}
 }

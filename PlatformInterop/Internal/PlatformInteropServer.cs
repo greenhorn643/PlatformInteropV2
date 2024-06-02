@@ -6,7 +6,15 @@ public partial class PlatformInteropServer<TChannel, TSerializer>(
 	where TChannel : IChannel
 	where TSerializer : ISerializer
 {
-	public Task Run() => RunReceiveLoop();
+	public void Run()
+	{
+		new Thread(ResponderLoop)
+		{
+			IsBackground = true
+		}.Start();
+
+		ReceiveLoop();
+	}
 
 	public void RegisterHandler<RT, TArgs>(byte methodCode, Func<TArgs, Task<RT>> handler)
 	{

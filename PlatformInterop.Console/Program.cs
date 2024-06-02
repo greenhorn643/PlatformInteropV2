@@ -8,7 +8,7 @@ var personClient = new PersonClient(client);
 
 Task.Run(client.Run);
 
-int nItems = 1000000;
+int nItems = 100000;
 
 var t0 = DateTime.Now;
 
