@@ -1,4 +1,6 @@
 ﻿using System.Collections.Concurrent;
+using System.Reflection.PortableExecutable;
+using System.Text.Json;
 
 namespace PlatformInterop.Internal;
 
@@ -11,7 +13,6 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 	private readonly Action<ResponseHeader, Buffer>?[] dispatchByMethodCode = new Action<ResponseHeader, Buffer>[256];
 	private readonly ConcurrentDictionary<Guid, object> pendingMethodCalls = [];
 
-	private readonly BlockingCollection<Action> responderQueue = [];
 	private readonly BlockingCollection<Action> senderQueue = [];
 
 	private void ReceiveLoop()
@@ -54,17 +55,11 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 
 				buffer.PopRange(responseHeaderBuffer);
 				currentHeader = serializer.Deserialize<ResponseHeader>(responseHeaderBuffer);
+#if DEBUG
+				Console.WriteLine($"{nameof(PlatformInteropClient)} received response header {JsonSerializer.Serialize(currentHeader)} ({responseHeaderBuffer.Length} bytes)");
+#endif
 				hasHeader = true;
 			}
-		}
-	}
-
-	private void ResponderLoop()
-	{
-		while (true)
-		{
-			var action = responderQueue.Take();
-			action();
 		}
 	}
 
@@ -95,8 +90,17 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 
 		senderQueue.Add(() =>
 		{
+#if DEBUG
+			Console.WriteLine($"{nameof(PlatformInteropClient)} sending request header {JsonSerializer.Serialize(headerWithBodyLength)} ({header.Length} bytes)");
+#endif
 			channel.Send(header);
+#if DEBUG
+			Console.WriteLine($"{nameof(PlatformInteropClient)} sending request body ({body.Length} bytes)");
+#endif
 			channel.Send(body);
+#if DEBUG
+			Console.WriteLine($"{nameof(PlatformInteropClient)} completed request packet send");
+#endif
 		});
 
 		return tcs.Task;
@@ -116,10 +120,20 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			var value = serializer.Deserialize<TReturnType>(bodySpan)
 				?? throw new PlatformInteropClientException($"failed to deserialize return type {typeof(TReturnType).Name}");
 
+#if DEBUG
+			Console.WriteLine($"{nameof(PlatformInteropClient)} received response body of type {typeof(TReturnType).Name} ({responseHeaderBuffer.Length} bytes)");
+#endif
+
 			if (pendingMethodCalls.TryRemove(header.CallerId, out var t))
 			{
 				var tcs = (TaskCompletionSource<TReturnType>)t;
-				responderQueue.Add(() => tcs.SetResult(value));
+				Task.Run(() =>
+				{
+#if DEBUG
+					Console.WriteLine($"{nameof(PlatformInteropClient)} returning result {value}");
+#endif
+					tcs.SetResult(value);
+				});
 			}
 		}
 		else
@@ -132,7 +146,13 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 			if (pendingMethodCalls.TryRemove(header.CallerId, out var t))
 			{
 				var tcs = (TaskCompletionSource<TReturnType>)t;
-				responderQueue.Add(() => tcs.SetException(error));
+				Task.Run(() =>
+				{
+#if DEBUG
+					Console.WriteLine($"{nameof(PlatformInteropClient)} returning exception {error}");
+#endif
+					tcs.SetException(error);
+				});
 			}
 		}
 	}

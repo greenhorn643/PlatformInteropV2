@@ -8,11 +8,6 @@ public partial class PlatformInteropClient<TChannel, TSerializer>(
 {
 	public void Run()
 	{
-		new Thread(ResponderLoop)
-		{
-			IsBackground = true
-		}.Start();
-
 		new Thread(SenderLoop)
 		{
 			IsBackground = true

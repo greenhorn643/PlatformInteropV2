@@ -6,17 +6,24 @@ var (client, disposer) = PlatformInteropClient.Create("PlatformInterop.Console.S
 
 var personClient = new PersonClient(client);
 
-Task.Run(client.Run);
+new Thread(client.Run)
+{
+	IsBackground = true
+}.Start();
 
-int nItems = 100000;
+int nItems = 1000000;
 
 var t0 = DateTime.Now;
 
-for (int i = 0; i < nItems; i++)
+var tasks = Enumerable.Range(0, nItems).Select(_ => personClient.AddPersonAsync(new Person("alex", "palmer", 33, null)));
+
+await Task.WhenAll(tasks);
+
+/*for (int i = 0; i < nItems; i++)
 {
 	await personClient.AddPersonAsync(new Person("alex", "palmer", 33, null));
 }
-
+*/
 var t1 = DateTime.Now;
 
 var elapsed = t1 - t0;
