@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
@@ -155,5 +156,32 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 				});
 			}
 		}
+	}
+
+	private Action<ResponseHeader, Buffer> DeserializeResponseBodyAndPostUnsolicited<TReturnType>(Action<TReturnType> handler)
+	{
+		void action(ResponseHeader header, Buffer buffer)
+		{
+			if (responseBodyBuffer.Length < header.BodyLength)
+			{
+				responseBodyBuffer = new byte[header.BodyLength];
+			}
+
+			if (!header.IsSuccess)
+			{
+				throw new PlatformInteropClientException("invalid header: exceptions are not supported for unsolicited responses");
+			}
+
+			var bodySpan = responseBodyBuffer.AsSpan()[..header.BodyLength];
+			buffer.PopRange(bodySpan);
+			var value = serializer.Deserialize<TReturnType>(bodySpan)
+				?? throw new PlatformInteropClientException($"failed to deserialize return type {typeof(TReturnType).Name}");
+#if DEBUG
+			Console.WriteLine($"{nameof(PlatformInteropClient)} received response body of type {typeof(TReturnType).Name} ({responseHeaderBuffer.Length} bytes)");
+#endif
+			Task.Run(() => handler(value));
+		}
+
+		return action;
 	}
 }

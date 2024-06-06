@@ -31,4 +31,25 @@ public partial class PlatformInteropServer<TChannel, TSerializer>(
 		requestHandlers[methodCode] = handler;
 		dispatchByMethodCode[methodCode] = CallMethodAndRespond<RT, TArgs>;
 	}
+
+	public void SendUnsolicited<TValue>(byte methodCode, TValue value)
+	{
+		byte[] body = serializer.Serialize(value);
+
+		var responseHeader = new ResponseHeader
+		{
+			MethodCode = methodCode,
+			CallerId = Guid.Empty,
+			IsSuccess = true,
+			BodyLength = body.Length,
+		};
+
+		byte[] headerBytes = serializer.Serialize(responseHeader);
+
+		responderQueue.Add(() =>
+		{
+			channel.Send(headerBytes);
+			channel.Send(body);
+		});
+	}
 }

@@ -26,6 +26,16 @@ public partial class PlatformInteropClient<TChannel, TSerializer>(
 		dispatchByMethodCode[methodCode] = DeserializeResponseBodyAndPostResponse<TReturnType>;
 	}
 
+	public void RegisterUnsolicited<TValue>(byte methodCode, Action<TValue> handler)
+	{
+		if (dispatchByMethodCode[methodCode] != null)
+		{
+			throw new PlatformInteropClientException($"a method with code {methodCode} has already been registered");
+		}
+
+		dispatchByMethodCode[methodCode] = DeserializeResponseBodyAndPostUnsolicited(handler);
+	}
+
 	public Task<TR> CallMethodAsync<TR>(Proxy<TR> _, byte methodCode)
 	{
 		return CallMethodImplAsync(Proxy<TR>.Value, Request.New(methodCode, Unit.Value));
