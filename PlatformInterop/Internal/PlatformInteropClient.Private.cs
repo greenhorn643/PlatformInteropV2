@@ -15,6 +15,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 	private readonly ConcurrentDictionary<Guid, object> pendingMethodCalls = [];
 
 	private readonly BlockingCollection<Action> senderQueue = [];
+	private readonly BlockingCollection<Action> unsolicitedQueue = [];
 
 	private void ReceiveLoop()
 	{
@@ -70,6 +71,22 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 		{
 			var action = senderQueue.Take();
 			action();
+		}
+	}
+
+	private void UnsolicitedLoop()
+	{
+		while (true)
+		{
+			var action = unsolicitedQueue.Take();
+			try
+			{
+				action();
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"warning: an unsolicited message handler threw an exception: {e}");
+			}
 		}
 	}
 
@@ -179,7 +196,7 @@ public partial class PlatformInteropClient<TChannel, TSerializer>
 #if DEBUG
 			Console.WriteLine($"{nameof(PlatformInteropClient)} received response body of type {typeof(TReturnType).Name} ({responseHeaderBuffer.Length} bytes)");
 #endif
-			Task.Run(() => handler(value));
+			unsolicitedQueue.Add(() => handler(value));
 		}
 
 		return action;

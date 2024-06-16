@@ -4,12 +4,14 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>2.0.5</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ByteBuffer" Version="1.1.0" />
-    <PackageReference Include="MemoryPack" Version="1.21.1" />
+    <PackageReference Include="UnicodeRandom" Version="1.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PlatformInterop\PlatformInterop.csproj" />
   </ItemGroup>
 
 </Project>

@@ -13,6 +13,11 @@ public partial class PlatformInteropClient<TChannel, TSerializer>(
 			IsBackground = true
 		}.Start();
 
+		new Thread(UnsolicitedLoop)
+		{
+			IsBackground = true
+		}.Start();
+
 		ReceiveLoop();
 	}
 
